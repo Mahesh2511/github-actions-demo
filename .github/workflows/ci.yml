@@ -2,6 +2,7 @@ name: TWS CI Workflow
 
 on:
     push:
+    workflow_dispatch: 
 
 jobs:
     build-and-push:  # job ka naam
