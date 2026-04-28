@@ -19,5 +19,5 @@ jobs:
                     git clone https://github.com/Mahesh2511/github-actions-demo.git
                     cd ~/github-actions-demo
                     git pull origin main
-                    docker compose pull
-                    docker compose down && docker compose up -d
+                    docker-compose pull
+                    docker-compose down && docker-compose up -d
