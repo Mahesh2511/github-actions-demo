@@ -1,7 +1,9 @@
 name: TWS CD Workflow
 
 on: 
-    workflow_dispatch: 
+    workflow_run:
+        workflows: ["TWS CI Workflow"] 
+        types: [completed]
 
 jobs:
     deploy:
