@@ -18,7 +18,7 @@ jobs:
                   username: ${{ secrets.EC2_USER }}
                   key: ${{ secrets.EC2_SSH_KEY }}
                   script: |
-                    git clone https://github.com/LondheShubham153/github-actions-demo.git
+                    git clone https://github.com/Mahesh2511/github-actions-demo.git
                     cd ~/github-actions-demo
                     git pull origin main
                     docker compose pull
