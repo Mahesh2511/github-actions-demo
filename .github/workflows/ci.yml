@@ -1,7 +1,6 @@
 name: TWS CI Workflow
 
 on: 
-    push:
     workflow_dispatch: 
 
 jobs:
