@@ -75,8 +75,8 @@ k8s/
 - Node group: 2× t3.small/t3.medium (ON_DEMAND, AL2023)
 - VPC: 10.0.0.0/16 with public + private subnets across 2 AZs
 - Remote state: S3 bucket `my-terraform-state-eks-demo` + DynamoDB lock
-- Addons: `aws-ebs-csi-driver` (required for PVC provisioning on EKS 1.23+)
-- IRSA roles: EBS CSI driver + AWS Load Balancer Controller
+- Addons: `aws-ebs-csi-driver` (required for PVC provisioning on EKS 1.23+, policy attached via node group role)
+- IRSA roles: AWS Load Balancer Controller only (EBS CSI uses node group IAM policy instead to avoid circular Terraform dependency)
 
 ### EC2 — `terraform/`
 - Standalone VPC + t3.micro Amazon Linux instance for Docker Compose deployment
@@ -123,20 +123,7 @@ go build -o skillpulse .
 2. Go to **Actions → EKS k8 Deploy → Run workflow** → action: `apply`
 3. Wait ~12 minutes for cluster + node group + IAM roles
 
-### Post-cluster: install EBS CSI driver (one-time if not via Terraform)
-
-```powershell
-# Get node group IAM role
-$NG = aws eks list-nodegroups --cluster-name demo-eks-webapp-v25 --region ap-south-1 --query "nodegroups[0]" --output text
-$ROLE = (aws eks describe-nodegroup --cluster-name demo-eks-webapp-v25 --nodegroup-name $NG --region ap-south-1 --query "nodegroup.nodeRole" --output text).Split("/")[-1]
-
-# Attach EBS CSI policy
-aws iam attach-role-policy --role-name $ROLE --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-
-# Install addon
-aws eks create-addon --cluster-name demo-eks-webapp-v25 --addon-name aws-ebs-csi-driver --region ap-south-1
-aws eks wait addon-active --cluster-name demo-eks-webapp-v25 --addon-name aws-ebs-csi-driver --region ap-south-1
-```
+Terraform provisions everything in one pass: VPC, EKS cluster, node group (with EBS CSI policy), `aws-ebs-csi-driver` addon, and ALB controller IAM role. No manual post-steps needed.
 
 ---
 
