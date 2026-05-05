@@ -20,6 +20,16 @@ module "vpc" {
   tags = {
     "kubernetes.io/cluster/demo-eks-webapp-v25" = "shared"
   }
+
+  public_subnet_tags = {
+    "kubernetes.io/role/elb"                        = 1
+    "kubernetes.io/cluster/demo-eks-webapp-v25"     = "shared"
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb"               = 1
+    "kubernetes.io/cluster/demo-eks-webapp-v25"     = "shared"
+  }
 }
 
 ########################
@@ -58,4 +68,54 @@ module "eks" {
   tags = {
     Environment = "dev"
   }
+}
+
+########################
+# IAM Role for AWS Load Balancer Controller (IRSA)
+########################
+locals {
+  oidc_issuer = replace(module.eks.cluster_oidc_issuer_url, "https://", "")
+}
+
+data "aws_iam_policy_document" "alb_controller_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_issuer}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_issuer}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "alb_controller" {
+  name               = "aws-load-balancer-controller-eks"
+  assume_role_policy = data.aws_iam_policy_document.alb_controller_assume.json
+}
+
+data "http" "alb_controller_policy_json" {
+  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.8.2/docs/install/iam_policy.json"
+}
+
+resource "aws_iam_policy" "alb_controller" {
+  name   = "AWSLoadBalancerControllerIAMPolicy"
+  policy = data.http.alb_controller_policy_json.response_body
+}
+
+resource "aws_iam_role_policy_attachment" "alb_controller" {
+  role       = aws_iam_role.alb_controller.name
+  policy_arn = aws_iam_policy.alb_controller.arn
 }

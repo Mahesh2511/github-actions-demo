@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mysql-config
-  namespace: skillpulse
-data:
-  DB_NAME: skillpulse_db
-  DB_USER: skillpulse_user
