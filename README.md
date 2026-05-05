@@ -1,140 +1,198 @@
-# GitHub Actions Demo
+# SkillPulse — EKS CI/CD Demo
 
-A comprehensive three-tier application designed for DevOps automation and CI/CD pipeline demonstrations using GitHub Actions.
+A three-tier skill-tracking web application demonstrating end-to-end DevOps automation: GitHub Actions CI/CD, Docker Compose for local development, Terraform for AWS EKS provisioning, and Kubernetes for production deployment.
 
-## 📋 Overview
-
-This repository showcases a modern three-tier application architecture with automated deployment pipelines, testing workflows, and DevOps best practices using GitHub Actions.
-
-## 🏗️ Architecture
-
-The application follows a three-tier architecture:
-
-1. **Presentation Tier** - Frontend UI layer
-2. **Application Tier** - Business logic layer
-3. **Data Tier** - Database layer
-
-## 🚀 Features
-
-- Automated CI/CD workflows with GitHub Actions
-- Multi-stage build and deployment pipelines
-- Integrated testing and quality checks
-- DevOps automation demonstrations
-- Infrastructure as Code (IaC) practices
-
-## 🛠️ Tech Stack
-
-- **Frontend**: HTML, CSS, JavaScript
-- **CI/CD**: GitHub Actions
-- **Version Control**: Git
-
-## 📦 Repository Structure
+## Architecture
 
 ```
-github-actions-demo/
-├── .github/workflows/    # GitHub Actions workflows
-├── src/                  # Application source code
-├── tests/                # Test suite
-├── docs/                 # Documentation
-└── README.md             # This file
+Internet
+   ↓
+AWS ALB (Ingress)
+   ↓
+Kubernetes Ingress Controller
+   ├── /        → Frontend (Nginx) — port 80
+   ├── /api/*   → Backend (Go API) — port 8080
+   └── /health  → Backend health check
+                      ↓
+                 MySQL (StatefulSet + PVC) — port 3306
 ```
 
-## 🔄 GitHub Actions Workflows
-
-This repository includes automated workflows for:
-
-- **Building** - Compiling and packaging the application
-- **Testing** - Running automated tests
-- **Deploying** - Automated deployment to staging/production
-- **Quality Checks** - Code linting and security scanning
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- Git
-- GitHub account with Actions enabled
-- Basic understanding of CI/CD concepts
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Mahesh2511/github-actions-demo.git
-   cd github-actions-demo
-   ```
-
-2. Explore the workflow files in `.github/workflows/`
-
-3. Review the application code in the `src/` directory
-
-### Running Locally
-
-```bash
-# Install dependencies (if applicable)
-npm install
-
-# Run tests
-npm test
-
-# Start the application
-npm start
-```
-
-## 📖 Documentation
-
-For detailed documentation on:
-- **Workflows** - Check `.github/workflows/` directory
-- **Architecture** - See `docs/ARCHITECTURE.md`
-- **Contributing** - See `CONTRIBUTING.md`
-
-## 🔗 Useful Links
-
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [DevOps Best Practices](https://docs.github.com/en/actions/guides)
-- [Workflow Syntax Reference](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions)
-
-## 💡 Use Cases
-
-This repository is ideal for:
-- Learning GitHub Actions
-- Demonstrating CI/CD pipelines
-- Understanding three-tier application deployment
-- DevOps training and workshops
-
-## 📝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is open source. Check the LICENSE file for details.
-
-## 👥 Authors
-
-- **Mahesh2511** - Repository maintainer
-
-## 🤝 Support
-
-For issues, questions, or suggestions:
-- Open an [Issue](https://github.com/Mahesh2511/github-actions-demo/issues)
-- Create a [Discussion](https://github.com/Mahesh2511/github-actions-demo/discussions)
-- Check existing documentation and workflows
-
-## 📚 Learning Resources
-
-- [GitHub Actions Quickstart](https://docs.github.com/en/actions/quickstart)
-- [Understanding Workflows](https://docs.github.com/en/actions/using-workflows)
-- [DevOps Practices](https://docs.github.com/en/actions/guides)
+**Stack:**
+- **Backend:** Go 1.26 + Gin framework
+- **Frontend:** Vanilla HTML/CSS/JS served by Nginx
+- **Database:** MySQL 8.4 (StatefulSet with 5Gi EBS PVC)
+- **Infra:** AWS EKS (ap-south-1), Terraform, Kubernetes
+- **CI/CD:** GitHub Actions → Docker Hub → EKS
 
 ---
 
-**Last Updated:** April 2026
+## CI/CD Pipelines
+
+| Workflow | File | Trigger | What it does |
+|---|---|---|---|
+| CI | `ci.yml` | Manual dispatch | Builds backend + frontend Docker images, pushes to Docker Hub tagged with commit SHA |
+| CD (EKS) | `cd-eks.yml` | Auto on CI success / manual | Deploys full stack to EKS in correct order |
+| EKS Provision | `EKS_deployment.yaml` | Manual (apply/destroy) | Runs Terraform to create/destroy EKS cluster |
+| CD (EC2) | `cd.yml` | Auto on CI success | Legacy EC2 Docker Compose deployment |
+
+### Deployment Order (CD)
+1. Namespace
+2. ConfigMap + Secrets
+3. MySQL StatefulSet → wait ready
+4. Backend Deployment + Service
+5. Frontend Deployment + Service
+6. ALB Ingress
+
+---
+
+## Kubernetes Structure
+
+```
+k8s/
+├── namespace.yml
+├── configmap.yml          # DB config + init.sql
+├── secrets.yml            # DB credentials (base64)
+├── ingress.yml            # ALB internet-facing ingress
+├── backend/
+│   ├── deployment.yml     # 2 replicas, /health probes
+│   └── service.yml        # ClusterIP :8080
+├── frontend/
+│   ├── deployment.yml     # 2 replicas
+│   └── service.yml        # ClusterIP :80
+└── mysql/
+    ├── statefulset.yml    # MySQL 8.4, init.sql mounted
+    ├── service.yml        # Headless ClusterIP :3306
+    └── pvc.yml            # 5Gi gp2 EBS volume
+```
+
+---
+
+## Infrastructure (Terraform)
+
+### EKS Cluster — `terraform/k8/`
+- Cluster: `demo-eks-webapp-v25` (Kubernetes 1.33)
+- Region: `ap-south-1` (Mumbai)
+- Node group: 2× t3.small/t3.medium (ON_DEMAND, AL2023)
+- VPC: 10.0.0.0/16 with public + private subnets across 2 AZs
+- Remote state: S3 bucket `my-terraform-state-eks-demo` + DynamoDB lock
+- Addons: `aws-ebs-csi-driver` (required for PVC provisioning on EKS 1.23+)
+- IRSA roles: EBS CSI driver + AWS Load Balancer Controller
+
+### EC2 — `terraform/`
+- Standalone VPC + t3.micro Amazon Linux instance for Docker Compose deployment
+
+---
+
+## Local Development
+
+```bash
+cp .env.example .env          # configure credentials
+docker-compose up -d          # start db + backend + nginx
+docker-compose logs -f
+docker-compose down -v
+```
+
+### Backend only
+
+```bash
+cd backend
+go mod tidy
+go build -o skillpulse .
+./skillpulse                  # runs on :8080
+```
+
+---
+
+## Required GitHub Secrets
+
+| Secret | Used by |
+|---|---|
+| `DOCKERHUB_USERNAME` | CI, CD |
+| `DOCKERHUB_TOKEN` | CI |
+| `AWS_ACCESS_KEY_ID` | CD (EKS), EKS provision |
+| `AWS_SECRET_ACCESS_KEY` | CD (EKS), EKS provision |
+| `HOST` | CD (EC2) |
+| `EC2_USER` | CD (EC2) |
+| `EC2_SSH_KEY` | CD (EC2) |
+
+---
+
+## Spinning Up the EKS Cluster
+
+1. Ensure S3 bucket `my-terraform-state-eks-demo` and DynamoDB table `terraform-lock` exist in `ap-south-1`
+2. Go to **Actions → EKS k8 Deploy → Run workflow** → action: `apply`
+3. Wait ~12 minutes for cluster + node group + IAM roles
+
+### Post-cluster: install EBS CSI driver (one-time if not via Terraform)
+
+```powershell
+# Get node group IAM role
+$NG = aws eks list-nodegroups --cluster-name demo-eks-webapp-v25 --region ap-south-1 --query "nodegroups[0]" --output text
+$ROLE = (aws eks describe-nodegroup --cluster-name demo-eks-webapp-v25 --nodegroup-name $NG --region ap-south-1 --query "nodegroup.nodeRole" --output text).Split("/")[-1]
+
+# Attach EBS CSI policy
+aws iam attach-role-policy --role-name $ROLE --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+
+# Install addon
+aws eks create-addon --cluster-name demo-eks-webapp-v25 --addon-name aws-ebs-csi-driver --region ap-south-1
+aws eks wait addon-active --cluster-name demo-eks-webapp-v25 --addon-name aws-ebs-csi-driver --region ap-south-1
+```
+
+---
+
+## Running CI/CD
+
+**Full deployment:**
+1. **Actions → TWS CI Workflow → Run workflow** — builds + pushes both images
+2. CD triggers automatically — deploys to EKS
+3. Get the URL:
+   ```powershell
+   kubectl get ingress skillpulse-ingress -n skillpulse
+   ```
+
+**Manual CD dispatch:** Actions → TWS CD EKS Workflow → Run workflow
+
+---
+
+## Useful kubectl Commands
+
+```powershell
+# Check all resources
+kubectl get all -n skillpulse
+
+# Watch pods
+kubectl get pods -n skillpulse -w
+
+# ALB URL
+kubectl get ingress skillpulse-ingress -n skillpulse
+
+# MySQL logs
+kubectl logs statefulset/mysql -n skillpulse
+
+# Backend logs
+kubectl logs deployment/backend -n skillpulse
+
+# Rollback
+kubectl rollout undo deployment/backend -n skillpulse
+kubectl rollout undo deployment/frontend -n skillpulse
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `MYSQL_ROOT_PASSWORD` | MySQL root password |
+| `DB_NAME` | Database name (`skillpulse`) |
+| `DB_USER` | App DB user (`skillpulse`) |
+| `DB_PASSWORD` | App DB password |
+| `DOCKERHUB_USERNAME` | Docker Hub username for image pull |
+
+---
+
+## Authors
+
+- **Mahesh Pawar** — [@Mahesh2511](https://github.com/Mahesh2511)
 
 **Fork of:** [LondheShubham153/github-actions-demo](https://github.com/LondheShubham153/github-actions-demo)
