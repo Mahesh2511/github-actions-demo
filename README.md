@@ -234,8 +234,3 @@ kubectl rollout undo deployment/frontend -n skillpulse
 
 ---
 
-## Authors
-
-- **Mahesh Pawar** — [@Mahesh2511](https://github.com/Mahesh2511)
-
-**Fork of:** [LondheShubham153/github-actions-demo](https://github.com/LondheShubham153/github-actions-demo)
