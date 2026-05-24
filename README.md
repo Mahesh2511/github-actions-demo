@@ -125,6 +125,62 @@ go build -o skillpulse .
 
 Terraform provisions everything in one pass: VPC, EKS cluster, node group (with EBS CSI policy), `aws-ebs-csi-driver` addon, and ALB controller IAM role. No manual post-steps needed.
 
+> **Known issue on re-spin:** If you previously destroyed the cluster, delete the CloudWatch log group `/aws/eks/demo-eks-webapp-v25/cluster` manually before re-applying — otherwise Terraform fails with `ResourceAlreadyExistsException`. Delete via AWS Console (CloudWatch → Log groups) or:
+> ```powershell
+> aws logs delete-log-group --log-group-name /aws/eks/demo-eks-webapp-v25/cluster --region ap-south-1
+> ```
+
+---
+
+## Connecting to the Cluster Locally
+
+### 1. Install kubectl (if not installed)
+
+**Windows:**
+```powershell
+winget install -e --id Kubernetes.kubectl
+```
+Or with Chocolatey: `choco install kubernetes-cli`
+
+**Mac:**
+```bash
+brew install kubectl
+```
+
+**Linux:**
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+```
+
+Verify: `kubectl version --client`
+
+### 2. Configure AWS CLI (if not done)
+
+```powershell
+aws configure
+# Enter: AWS Access Key ID, Secret Access Key, region: ap-south-1, output: json
+```
+
+### 3. Connect to EKS
+
+```powershell
+aws eks update-kubeconfig --name demo-eks-webapp-v25 --region ap-south-1
+kubectl get nodes
+```
+
+Should show 2 nodes in `Ready` state.
+
+### 4. Get the app URL
+
+```powershell
+kubectl get ingress skillpulse-ingress -n skillpulse
+```
+
+The `ADDRESS` column is the ALB hostname — open it in your browser.
+
+Alternatively: **AWS Console → EC2 → Load Balancers** (ap-south-1) → copy the DNS name of the `k8s-skillpul-*` ALB.
+
 ---
 
 ## Running CI/CD
